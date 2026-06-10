@@ -213,7 +213,19 @@ export function ScholarshipWizard() {
   }
 
   function handleSubmit() {
-    // Clear draft from localStorage on submit
+    // Guard: ensure all previous steps are still valid before submitting.
+    // This can fail after draft restore if uploaded files were lost.
+    const firstInvalid = stepValid.slice(0, 3).findIndex(v => !v);
+    if (firstInvalid !== -1) {
+      // Redirect back to the first invalid step and show errors
+      setCurrentStep(firstInvalid);
+      setShowErrors(prev => prev.map((_, i) => i === firstInvalid ? true : prev[i]));
+      setShaking(true);
+      setTimeout(() => setShaking(false), 400);
+      scrollTop();
+      return;
+    }
+    // All good — clear draft and submit
     localStorage.removeItem(DRAFT_KEY);
     setSubmitted(true);
   }
@@ -227,10 +239,18 @@ export function ScholarshipWizard() {
         scholarshipName={personalData?.scholarshipName}
         submittedAt="7 Juni 2026"
         onRestart={() => {
+          // Full reset — clear all form data and draft
+          localStorage.removeItem(DRAFT_KEY);
           setSubmitted(false);
           setCurrentStep(0);
           setStepValid([false, false, false, false]);
           setShowErrors([false, false, false, false]);
+          setPersonalData(null);
+          setAcademicData(null);
+          setDocData(null);
+          setLastSavedAt(null);
+          setSaveStatus("idle");
+          setDraftRestoreKey(0);
         }}
       />
     );
