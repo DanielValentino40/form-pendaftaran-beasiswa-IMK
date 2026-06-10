@@ -237,7 +237,7 @@ export function ScholarshipWizard() {
       <SuccessPage
         registrationId="REG-2026-0842"
         scholarshipName={personalData?.scholarshipName}
-        submittedAt="7 Juni 2026"
+        submittedAt={new Date().toLocaleString("id-ID", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
         onRestart={() => {
           // Full reset — clear all form data and draft
           localStorage.removeItem(DRAFT_KEY);
