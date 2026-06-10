@@ -151,26 +151,27 @@ interface Props {
   onValidChange: (valid: boolean) => void;
   showErrors: boolean;
   onDataChange: (data: PersonalFormData) => void;
+  initialData?: PersonalFormData | null;
 }
 
-export function StepPersonalInfo({ onValidChange, showErrors, onDataChange }: Props) {
+export function StepPersonalInfo({ onValidChange, showErrors, onDataChange, initialData }: Props) {
   const isMobile = useIsMobile(640);
 
   const grid2: React.CSSProperties = isMobile
     ? { display: "flex", flexDirection: "column", gap: "12px" }
     : { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" };
 
-  const [selectedScholarship, setSelectedScholarship] = useState("");
-  const [nim,      onNimChange,      onNimBlur]      = useField("", (v) => /^[A-Za-z]\d{2}\.\d{4}\.\d{5}$/.test(v.trim()));
-  const [ktp,      onKtpChange,      onKtpBlur]      = useField("", (v) => /^\d{16}$/.test(v.replace(/\s/g, "")));
-  const [kk,       onKkChange,       onKkBlur]       = useField("", (v) => /^\d{16}$/.test(v.replace(/\s/g, "")));
-  const [rekening, onRekeningChange, onRekeningBlur] = useField("", (v) => /^\d{10,16}$/.test(v.replace(/\s/g, "")));
-  const [bank,     setBank]                          = useState("");
-  const [phone,    onPhoneChange,    onPhoneBlur]    = useField("", (v) => v.replace(/\D/g, "").length >= 10);
-  const [dob,      onDobChange,      onDobBlur]      = useField("", (v) => v.length > 0);
-  const [hasPkm,   setHasPkm]                        = useState<"ya" | "tidak" | null>(null);
-  const [judulPkm, setJudulPkm]                      = useState("");
-  const [deskPkm,  setDeskPkm]                       = useState("");
+  const [selectedScholarship, setSelectedScholarship] = useState(initialData?.scholarshipId ?? "");
+  const [nim,      onNimChange,      onNimBlur]      = useField(initialData?.nim ?? "",      (v) => /^[A-Za-z]\d{2}\.\d{4}\.\d{5}$/.test(v.trim()));
+  const [ktp,      onKtpChange,      onKtpBlur]      = useField(initialData?.ktp ?? "",      (v) => /^\d{16}$/.test(v.replace(/\s/g, "")));
+  const [kk,       onKkChange,       onKkBlur]       = useField(initialData?.kk ?? "",       (v) => /^\d{16}$/.test(v.replace(/\s/g, "")));
+  const [rekening, onRekeningChange, onRekeningBlur] = useField(initialData?.rekening ?? "", (v) => /^\d{10,16}$/.test(v.replace(/\s/g, "")));
+  const [bank,     setBank]                          = useState(initialData?.bank ?? "");
+  const [phone,    onPhoneChange,    onPhoneBlur]    = useField(initialData?.phone ?? "",    (v) => v.replace(/\D/g, "").length >= 10);
+  const [dob,      onDobChange,      onDobBlur]      = useField(initialData?.dob ?? "",      (v) => v.length > 0);
+  const [hasPkm,   setHasPkm]                        = useState<"ya" | "tidak" | null>(initialData?.hasPkm ?? null);
+  const [judulPkm, setJudulPkm]                      = useState(initialData?.judulPkm ?? "");
+  const [deskPkm,  setDeskPkm]                       = useState(initialData?.deskPkm ?? "");
 
   const isValid =
     selectedScholarship !== "" &&

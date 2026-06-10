@@ -239,16 +239,17 @@ interface Props {
   onValidChange: (valid: boolean) => void;
   showErrors: boolean;
   onDataChange: (data: AcademicFormData) => void;
+  initialData?: AcademicFormData | null;
 }
 
-export function StepAcademicInfo({ onValidChange, showErrors, onDataChange }: Props) {
+export function StepAcademicInfo({ onValidChange, showErrors, onDataChange, initialData }: Props) {
   const isMobile = useIsMobile(640);
   const grid2: React.CSSProperties = isMobile
     ? { display: "flex", flexDirection: "column", gap: "12px" }
     : { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" };
 
-  const [faculty, setFaculty] = useState("");
-  const [major,   setMajor]   = useState("");
+  const [faculty, setFaculty] = useState(initialData?.faculty ?? "");
+  const [major,   setMajor]   = useState(initialData?.major ?? "");
 
   function handleFacultyChange(v: string) {
     setFaculty(v);
@@ -256,19 +257,19 @@ export function StepAcademicInfo({ onValidChange, showErrors, onDataChange }: Pr
   }
 
   const availableMajors = faculty ? FACULTY_MAJORS[faculty] ?? [] : [];
-  const [year,    setYear]    = useState("");
-  const [gpa,     setGpa]     = useState("");
+  const [year,    setYear]    = useState(initialData?.year ?? "");
+  const [gpa,     setGpa]     = useState(initialData?.gpa ?? "");
 
-  const [ktpOrtu,          setKtpOrtu]          = useState("");
-  const [namaOrtu,         setNamaOrtu]         = useState("");
-  const [jenisKelaminOrtu, setJenisKelaminOrtu] = useState("");
-  const [kewarganegaraan,  setKewarganegaraan]  = useState("");
-  const [statusPerkawinan, setStatusPerkawinan] = useState("");
-  const [agama,            setAgama]            = useState("");
-  const [pendapatan,       setPendapatan]       = useState("");
-  const [tanggungan,       setTanggungan]       = useState(0);
-  const [tempatLahirOrtu,  setTempatLahirOrtu]  = useState("");
-  const [tglLahirOrtu,     setTglLahirOrtu]     = useState("");
+  const [ktpOrtu,          setKtpOrtu]          = useState(initialData?.ktpOrtu ?? "");
+  const [namaOrtu,         setNamaOrtu]         = useState(initialData?.namaOrtu ?? "");
+  const [jenisKelaminOrtu, setJenisKelaminOrtu] = useState(initialData?.jenisKelaminOrtu ?? "");
+  const [kewarganegaraan,  setKewarganegaraan]  = useState(initialData?.kewarganegaraan ?? "");
+  const [statusPerkawinan, setStatusPerkawinan] = useState(initialData?.statusPerkawinan ?? "");
+  const [agama,            setAgama]            = useState(initialData?.agama ?? "");
+  const [pendapatan,       setPendapatan]       = useState(initialData?.pendapatan ?? "");
+  const [tanggungan,       setTanggungan]       = useState(initialData?.tanggungan ?? 0);
+  const [tempatLahirOrtu,  setTempatLahirOrtu]  = useState(initialData?.tempatLahirOrtu ?? "");
+  const [tglLahirOrtu,     setTglLahirOrtu]     = useState(initialData?.tglLahirOrtu ?? "");
 
   const gpaNum = parseFloat(gpa) || 0;
 

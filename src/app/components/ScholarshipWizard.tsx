@@ -53,6 +53,7 @@ export function ScholarshipWizard() {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [draftTimestamp, setDraftTimestamp] = useState<string>("");
+  const [draftRestoreKey, setDraftRestoreKey] = useState(0); // forces step remount on restore
   const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -114,7 +115,7 @@ export function ScholarshipWizard() {
     if (autoSaveEnabled && !submitted) {
       autoSaveTimerRef.current = setInterval(() => {
         saveDraftToStorage();
-      }, 5 * 60 * 1000); // 5 minutes
+      }, 2 * 60 * 1000); // 2 minutes
     }
     return () => {
       if (autoSaveTimerRef.current) {
@@ -131,9 +132,11 @@ export function ScholarshipWizard() {
         const draft = JSON.parse(raw);
         if (draft.personalData) setPersonalData(draft.personalData);
         if (draft.academicData) setAcademicData(draft.academicData);
+        if (draft.docData) setDocData(draft.docData);
         if (draft.currentStep !== undefined) setCurrentStep(draft.currentStep);
-        // Note: docData file objects can't be restored from localStorage,
-        // but document metadata (names) will be shown
+        // Increment key to force StepPersonalInfo & StepAcademicInfo to remount
+        // so their internal useState picks up the new initialData
+        setDraftRestoreKey(k => k + 1);
       }
     } catch (e) {
       console.warn("Failed to restore draft:", e);
@@ -361,24 +364,31 @@ export function ScholarshipWizard() {
           */}
           <div style={{ display: currentStep === 0 ? "block" : "none" }}>
             <StepPersonalInfo
+              key={`personal-${draftRestoreKey}`}
               onValidChange={makeOnValidChange(0)}
               showErrors={makeShowErrors(0)}
               onDataChange={setPersonalData}
+              initialData={draftRestoreKey > 0 ? personalData : null}
             />
           </div>
           <div style={{ display: currentStep === 1 ? "block" : "none" }}>
             <StepAcademicInfo
+              key={`academic-${draftRestoreKey}`}
               onValidChange={makeOnValidChange(1)}
               showErrors={makeShowErrors(1)}
               onDataChange={setAcademicData}
+              initialData={draftRestoreKey > 0 ? academicData : null}
             />
           </div>
           <div style={{ display: currentStep === 2 ? "block" : "none" }}>
             <StepDocuments
+              key={`docs-${draftRestoreKey}`}
               onValidChange={makeOnValidChange(2)}
               showErrors={makeShowErrors(2)}
               onDataChange={setDocData}
               scholarshipId={personalData?.scholarshipId ?? ""}
+              initialDocs={draftRestoreKey > 0 ? docData?.docs : null}
+              initialStatement={draftRestoreKey > 0 ? docData?.statement : undefined}
             />
           </div>
           <div style={{ display: currentStep === 3 ? "block" : "none" }}>

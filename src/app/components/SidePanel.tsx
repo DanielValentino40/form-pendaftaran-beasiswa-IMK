@@ -115,7 +115,7 @@ export function SidePanel({ onSaveDraft, draftSaved, currentStep, autoSaveEnable
           display: "flex", alignItems: "center", justifyContent: "space-between",
           marginTop: "12px", paddingTop: "12px", borderTop: "1px solid rgba(26,47,94,0.08)",
         }}>
-          <span style={{ fontSize: "12px", color: "#6b7a99" }}>Simpan otomatis setiap 5 menit</span>
+          <span style={{ fontSize: "12px", color: "#6b7a99" }}>Simpan otomatis setiap 2 menit</span>
           <button
             onClick={onAutoSaveToggle}
             style={{

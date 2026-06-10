@@ -9,6 +9,9 @@ export interface DocItem {
   fileName?: string;
   fileSize?: number;
   fileError?: string;
+  /** Stored from draft restore — file content is gone but name is shown */
+  prevFileName?: string;
+  prevFileSize?: number;
 }
 
 interface Props {
@@ -16,6 +19,8 @@ interface Props {
   showErrors: boolean;
   onDataChange: (data: { docs: DocItem[]; statement: string }) => void;
   scholarshipId?: string;
+  initialDocs?: DocItem[] | null;
+  initialStatement?: string;
 }
 
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
@@ -27,16 +32,38 @@ function formatFileSize(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
-export function StepDocuments({ onValidChange, showErrors, onDataChange, scholarshipId = "" }: Props) {
-  const [docs, setDocs] = useState<DocItem[]>([
-    { id: "transcript", label: "Transkrip Nilai Resmi", required: true, hint: "Transkrip tersegel dari Biro Akademik, format PDF", uploaded: false },
-    { id: "ktp_scan", label: "Scan KTP (NIK)", required: true, hint: "Foto atau scan KTP yang jelas, PDF/JPG", uploaded: false },
-    { id: "kk_scan", label: "Scan Kartu Keluarga", required: true, hint: "Foto atau scan KK yang jelas, PDF/JPG", uploaded: false },
-    { id: "photo", label: "Pas Foto Formal", required: true, hint: "Pakaian formal, latar putih, ukuran 4×6 cm", uploaded: false },
-    { id: "income", label: "Surat Keterangan Penghasilan Orang Tua", required: false, hint: "Diperlukan untuk beasiswa berbasis kebutuhan finansial", uploaded: false },
-    { id: "sktm", label: "Surat Keterangan Tidak Mampu (SKTM)", required: false, hint: "Wajib untuk beasiswa selain Djarum. Format PDF/JPG/PNG, maks 2MB.", uploaded: false },
-  ]);
-  const [statement, setStatement] = useState("");
+const INITIAL_DOCS: DocItem[] = [
+  { id: "transcript", label: "Transkrip Nilai Resmi",                       required: true,  hint: "Transkrip tersegel dari Biro Akademik, format PDF",                      uploaded: false },
+  { id: "ktp_scan",   label: "Scan KTP (NIK)",                              required: true,  hint: "Foto atau scan KTP yang jelas, PDF/JPG",                                uploaded: false },
+  { id: "kk_scan",    label: "Scan Kartu Keluarga",                         required: true,  hint: "Foto atau scan KK yang jelas, PDF/JPG",                                 uploaded: false },
+  { id: "photo",      label: "Pas Foto Formal",                             required: true,  hint: "Pakaian formal, latar putih, ukuran 4×6 cm",                            uploaded: false },
+  { id: "income",     label: "Surat Keterangan Penghasilan Orang Tua",      required: false, hint: "Diperlukan untuk beasiswa berbasis kebutuhan finansial",                 uploaded: false },
+  { id: "sktm",       label: "Surat Keterangan Tidak Mampu (SKTM)",         required: false, hint: "Wajib untuk beasiswa selain Djarum. Format PDF/JPG/PNG, maks 2MB.",     uploaded: false },
+];
+
+export function StepDocuments({ onValidChange, showErrors, onDataChange, scholarshipId = "", initialDocs, initialStatement }: Props) {
+  // When restoring from draft: mark prevFileName so user knows what to re-upload
+  const [docs, setDocs] = useState<DocItem[]>(() => {
+    if (initialDocs && initialDocs.length > 0) {
+      return INITIAL_DOCS.map(base => {
+        const saved = initialDocs.find(d => d.id === base.id);
+        if (!saved) return base;
+        // File content can't be restored from localStorage — keep uploaded:false
+        // but store the previous filename as a hint
+        return {
+          ...base,
+          required: saved.required,
+          uploaded: false, // always false on restore
+          prevFileName: saved.fileName,   // hint only
+          prevFileSize: saved.fileSize,
+        };
+      });
+    }
+    return INITIAL_DOCS;
+  });
+
+  const [statement, setStatement] = useState(initialStatement ?? "");
+  const [dragTarget, setDragTarget] = useState<string | null>(null);
   const [hoveredDropzone, setHoveredDropzone] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -54,32 +81,66 @@ export function StepDocuments({ onValidChange, showErrors, onDataChange, scholar
 
     // Validate file type
     if (!ALLOWED_TYPES.includes(file.type)) {
-      setDocs(prev => prev.map(d => d.id === docId ? { ...d, uploaded: false, fileName: undefined, fileSize: undefined, fileError: 'Format file tidak didukung. Gunakan PDF, JPG, atau PNG.' } : d));
+      setDocs(prev => prev.map(d => d.id === docId
+        ? { ...d, uploaded: false, fileName: undefined, fileSize: undefined, prevFileName: undefined, fileError: 'Format file tidak didukung. Gunakan PDF, JPG, atau PNG.' }
+        : d));
       return;
     }
 
     // Validate file size
     if (file.size > MAX_SIZE) {
-      setDocs(prev => prev.map(d => d.id === docId ? { ...d, uploaded: false, fileName: undefined, fileSize: undefined, fileError: `Ukuran file terlalu besar (${(file.size / 1024 / 1024).toFixed(1)} MB). Maksimal 2 MB.` } : d));
+      setDocs(prev => prev.map(d => d.id === docId
+        ? { ...d, uploaded: false, fileName: undefined, fileSize: undefined, prevFileName: undefined, fileError: `Ukuran file terlalu besar (${(file.size / 1024 / 1024).toFixed(1)} MB). Maksimal 2 MB.` }
+        : d));
       return;
     }
 
-    // Valid file
-    setDocs(prev => prev.map(d => d.id === docId ? { ...d, uploaded: true, fileName: file.name, fileSize: file.size, fileError: undefined } : d));
+    // Valid file — clear prevFileName hint once user uploads successfully
+    setDocs(prev => prev.map(d => d.id === docId
+      ? { ...d, uploaded: true, fileName: file.name, fileSize: file.size, fileError: undefined, prevFileName: undefined, prevFileSize: undefined }
+      : d));
   }
 
   function handleRemoveFile(docId: string) {
-    setDocs(prev => prev.map(d => d.id === docId ? { ...d, uploaded: false, fileName: undefined, fileSize: undefined, fileError: undefined } : d));
-    // Reset the file input
+    setDocs(prev => prev.map(d => d.id === docId
+      ? { ...d, uploaded: false, fileName: undefined, fileSize: undefined, fileError: undefined }
+      : d));
     const input = fileInputRefs.current[docId];
     if (input) input.value = "";
+  }
+
+  // ── Drag & Drop handlers ──────────────────────────────────────
+  function handleDragOver(e: React.DragEvent, docId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragTarget(docId);
+  }
+
+  function handleDragEnter(e: React.DragEvent, docId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragTarget(docId);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragTarget(null);
+  }
+
+  function handleDrop(e: React.DragEvent, docId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragTarget(null);
+    setHoveredDropzone(null);
+    const file = e.dataTransfer.files?.[0] ?? null;
+    handleFileSelect(docId, file);
   }
 
   const uploadedCount = docs.filter((d) => d.uploaded).length;
   const requiredCount = docs.filter((d) => d.required).length;
   const uploadedRequired = docs.filter((d) => d.required && d.uploaded).length;
   const allRequiredDone = uploadedRequired === requiredCount;
-
 
   useEffect(() => { onValidChange(allRequiredDone); }, [allRequiredDone]);
   useEffect(() => { onDataChange({ docs, statement }); }, [docs, statement]);
@@ -120,137 +181,185 @@ export function StepDocuments({ onValidChange, showErrors, onDataChange, scholar
         </div>
       </div>
 
-      {/* Daftar dokumen */}
+      {/* Error global */}
       {showErrors && !allRequiredDone && (
         <p style={{ fontSize: "12px", color: "#c0392b", margin: "-8px 0 0", fontWeight: 500 }}>
           Harap unggah semua dokumen wajib sebelum melanjutkan.
         </p>
       )}
+
+      {/* Daftar dokumen */}
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {docs.map((doc) => {
           const needsUpload = showErrors && doc.required && !doc.uploaded;
+          const isDragOver = dragTarget === doc.id;
+          const isHovered = hoveredDropzone === doc.id;
+
           return (
-          <div
-            key={doc.id}
-            style={{
-              borderRadius: "12px", padding: "14px 16px", transition: "all 0.2s",
-              border: doc.uploaded
-                ? "1.5px solid rgba(46,125,50,0.3)"
-                : needsUpload
-                ? "1.5px solid #e74c3c"
-                : "1.5px solid rgba(26,47,94,0.12)",
-              background: doc.uploaded ? "rgba(46,125,50,0.03)" : needsUpload ? "rgba(231,76,60,0.03)" : "#f8f9fc",
-            }}
-          >
-            {/* Document header */}
-            <div style={{ display: "flex", alignItems: "center", gap: "14px", marginBottom: "10px" }}>
-              <div style={{
-                width: "36px", height: "36px", borderRadius: "10px", flexShrink: 0,
-                background: doc.uploaded ? "rgba(46,125,50,0.12)" : "rgba(26,47,94,0.06)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                {doc.uploaded ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#2e7d32" strokeWidth="2" />
-                    <path d="M9 12l2 2 4-4" stroke="#2e7d32" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#6b7a99" strokeWidth="2" />
-                    <path d="M12 11v6M9 14l3-3 3 3" stroke="#6b7a99" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                )}
-              </div>
-
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <p style={{ fontSize: "13px", fontWeight: 600, color: "#0f1f3d", margin: 0 }}>{doc.label}</p>
-                  <span style={{
-                    fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "10px",
-                    background: doc.required ? "#dc2626" : "rgba(107,122,153,0.1)",
-                    color: doc.required ? "white" : "#6b7a99",
-                  }}>
-                    {doc.required ? "Wajib" : "Opsional"}
-                  </span>
-                </div>
-                <p style={{ fontSize: "12px", color: "#6b7a99", margin: "2px 0 0" }}>{doc.hint}</p>
-              </div>
-            </div>
-
-            {/* Upload area / file info */}
-            {doc.uploaded && doc.fileName ? (
-              /* Uploaded success state */
-              <div style={{
-                display: "flex", alignItems: "center", gap: "12px",
-                background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)",
-                borderRadius: "10px", padding: "12px 16px",
-              }}>
-                <span style={{ fontSize: "18px", flexShrink: 0 }}>✅</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{
-                    fontSize: "13px", fontWeight: 600, color: "#15803d", margin: 0,
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  }}>
-                    {doc.fileName}
-                  </p>
-                  {doc.fileSize !== undefined && (
-                    <p style={{ fontSize: "11px", color: "#6b7a99", margin: "2px 0 0" }}>
-                      {formatFileSize(doc.fileSize)}
-                    </p>
+            <div
+              key={doc.id}
+              style={{
+                borderRadius: "12px", padding: "14px 16px", transition: "all 0.2s",
+                border: doc.uploaded
+                  ? "1.5px solid rgba(46,125,50,0.3)"
+                  : isDragOver
+                  ? "1.5px solid #f5a623"
+                  : needsUpload
+                  ? "1.5px solid #e74c3c"
+                  : "1.5px solid rgba(26,47,94,0.12)",
+                background: doc.uploaded
+                  ? "rgba(46,125,50,0.03)"
+                  : isDragOver
+                  ? "rgba(245,166,35,0.04)"
+                  : needsUpload
+                  ? "rgba(231,76,60,0.03)"
+                  : "#f8f9fc",
+              }}
+            >
+              {/* Document header */}
+              <div style={{ display: "flex", alignItems: "center", gap: "14px", marginBottom: "10px" }}>
+                <div style={{
+                  width: "36px", height: "36px", borderRadius: "10px", flexShrink: 0,
+                  background: doc.uploaded ? "rgba(46,125,50,0.12)" : "rgba(26,47,94,0.06)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  {doc.uploaded ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#2e7d32" strokeWidth="2" />
+                      <path d="M9 12l2 2 4-4" stroke="#2e7d32" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#6b7a99" strokeWidth="2" />
+                      <path d="M12 11v6M9 14l3-3 3 3" stroke="#6b7a99" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
                   )}
                 </div>
-                <button
-                  onClick={() => handleRemoveFile(doc.id)}
-                  style={{
-                    flexShrink: 0, padding: "6px 14px", borderRadius: "8px",
-                    fontSize: "12px", fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
-                    fontFamily: "inherit", background: "transparent",
-                    color: "#dc2626", border: "none",
-                  }}
-                >
-                  Hapus
-                </button>
-              </div>
-            ) : (
-              /* Dropzone upload area */
-              <>
-                <div
-                  onClick={() => fileInputRefs.current[doc.id]?.click()}
-                  onMouseEnter={() => setHoveredDropzone(doc.id)}
-                  onMouseLeave={() => setHoveredDropzone(null)}
-                  style={{
-                    border: hoveredDropzone === doc.id ? "2px dashed #f5a623" : "2px dashed rgba(26,47,94,0.15)",
-                    borderRadius: "10px", padding: "16px", textAlign: "center" as const,
-                    cursor: "pointer", background: "rgba(26,47,94,0.02)",
-                    transition: "border-color 0.2s",
-                  }}
-                >
-                  <div style={{ fontSize: "24px", marginBottom: "6px" }}>📎</div>
-                  <p style={{ fontSize: "13px", fontWeight: 600, color: "#1a2f5e", margin: "0 0 2px" }}>
-                    Klik untuk memilih file
-                  </p>
-                  <p style={{ fontSize: "11px", color: "#6b7a99", margin: 0 }}>
-                    PDF, JPG, PNG · Maks 2MB
-                  </p>
-                  <input
-                    ref={(el) => { fileInputRefs.current[doc.id] = el; }}
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    style={{ display: "none" }}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      handleFileSelect(doc.id, file);
-                    }}
-                  />
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <p style={{ fontSize: "13px", fontWeight: 600, color: "#0f1f3d", margin: 0 }}>{doc.label}</p>
+                    <span style={{
+                      fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "10px",
+                      background: doc.required ? "#dc2626" : "rgba(107,122,153,0.1)",
+                      color: doc.required ? "white" : "#6b7a99",
+                    }}>
+                      {doc.required ? "Wajib" : "Opsional"}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: "12px", color: "#6b7a99", margin: "2px 0 0" }}>{doc.hint}</p>
                 </div>
-                {doc.fileError && (
-                  <p style={{ color: "#dc2626", fontSize: "12px", marginTop: "6px", margin: "6px 0 0" }}>
-                    {doc.fileError}
-                  </p>
-                )}
-              </>
-            )}
-          </div>
+              </div>
+
+              {/* Previously uploaded hint (draft restore) */}
+              {!doc.uploaded && doc.prevFileName && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: "10px",
+                  background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.25)",
+                  borderRadius: "10px", padding: "10px 14px", marginBottom: "10px",
+                }}>
+                  <span style={{ fontSize: "16px", flexShrink: 0 }}>📁</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: "12px", fontWeight: 600, color: "#8B6914", margin: 0 }}>
+                      File sebelumnya: {doc.prevFileName}
+                      {doc.prevFileSize !== undefined && (
+                        <span style={{ fontWeight: 400, color: "#9aa4b8" }}> · {formatFileSize(doc.prevFileSize)}</span>
+                      )}
+                    </p>
+                    <p style={{ fontSize: "11px", color: "#9aa4b8", margin: "2px 0 0" }}>
+                      File tidak bisa disimpan di draf. Harap unggah ulang.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Upload area / file info */}
+              {doc.uploaded && doc.fileName ? (
+                /* Uploaded success state */
+                <div style={{
+                  display: "flex", alignItems: "center", gap: "12px",
+                  background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)",
+                  borderRadius: "10px", padding: "12px 16px",
+                }}>
+                  <span style={{ fontSize: "18px", flexShrink: 0 }}>✅</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{
+                      fontSize: "13px", fontWeight: 600, color: "#15803d", margin: 0,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>
+                      {doc.fileName}
+                    </p>
+                    {doc.fileSize !== undefined && (
+                      <p style={{ fontSize: "11px", color: "#6b7a99", margin: "2px 0 0" }}>
+                        {formatFileSize(doc.fileSize)}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleRemoveFile(doc.id)}
+                    style={{
+                      flexShrink: 0, padding: "6px 14px", borderRadius: "8px",
+                      fontSize: "12px", fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
+                      fontFamily: "inherit", background: "transparent",
+                      color: "#dc2626", border: "none",
+                    }}
+                  >
+                    Hapus
+                  </button>
+                </div>
+              ) : (
+                /* Dropzone — supports both click and drag & drop */
+                <>
+                  <div
+                    onClick={() => fileInputRefs.current[doc.id]?.click()}
+                    onMouseEnter={() => setHoveredDropzone(doc.id)}
+                    onMouseLeave={() => setHoveredDropzone(null)}
+                    onDragOver={(e) => handleDragOver(e, doc.id)}
+                    onDragEnter={(e) => handleDragEnter(e, doc.id)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, doc.id)}
+                    style={{
+                      border: isDragOver
+                        ? "2px dashed #f5a623"
+                        : isHovered
+                        ? "2px dashed #1a2f5e"
+                        : "2px dashed rgba(26,47,94,0.15)",
+                      borderRadius: "10px",
+                      padding: isDragOver ? "20px 16px" : "16px",
+                      textAlign: "center" as const,
+                      cursor: "pointer",
+                      background: isDragOver ? "rgba(245,166,35,0.05)" : "rgba(26,47,94,0.02)",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    <div style={{ fontSize: isDragOver ? "30px" : "24px", marginBottom: "6px", transition: "font-size 0.2s" }}>
+                      {isDragOver ? "📂" : "📎"}
+                    </div>
+                    <p style={{ fontSize: "13px", fontWeight: 600, color: isDragOver ? "#f5a623" : "#1a2f5e", margin: "0 0 2px" }}>
+                      {isDragOver ? "Lepas file di sini" : "Klik atau seret file ke sini"}
+                    </p>
+                    <p style={{ fontSize: "11px", color: "#6b7a99", margin: 0 }}>
+                      PDF, JPG, PNG · Maks 2MB
+                    </p>
+                    <input
+                      ref={(el) => { fileInputRefs.current[doc.id] = el; }}
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        handleFileSelect(doc.id, file);
+                      }}
+                    />
+                  </div>
+                  {doc.fileError && (
+                    <p style={{ color: "#dc2626", fontSize: "12px", marginTop: "6px", margin: "6px 0 0" }}>
+                      ⚠️ {doc.fileError}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
           );
         })}
       </div>
