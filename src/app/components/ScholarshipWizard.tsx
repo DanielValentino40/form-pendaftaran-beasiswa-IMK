@@ -251,6 +251,8 @@ export function ScholarshipWizard() {
           setLastSavedAt(null);
           setSaveStatus("idle");
           setDraftRestoreKey(0);
+          // Smooth scroll to top so user lands at the form header
+          scrollTop();
         }}
       />
     );
