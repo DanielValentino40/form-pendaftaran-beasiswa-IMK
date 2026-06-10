@@ -145,9 +145,8 @@ export function StepReview({ personalData: p, academicData: a, docData: d, onEdi
     onSubmit();
   }
 
-  // Required docs always shown; optional ones only if uploaded
   const allDocs = d?.docs ?? [];
-  const docs = allDocs.filter((doc) => doc.required || doc.uploaded);
+  const docs = allDocs;
   const statement = d?.statement ?? "";
 
   const PersonIcon = (
@@ -229,7 +228,10 @@ export function StepReview({ personalData: p, academicData: a, docData: d, onEdi
         <FieldRow label="IPK Kumulatif" value={a?.gpa ? `${a.gpa} / 4,00` : "—"} isMobile={isMobile} />
 
         <SectionLabel>Data Orang Tua / Wali</SectionLabel>
+        <FieldRow label="NIK Orang Tua" value={a?.ktpOrtu ? mask(a.ktpOrtu) : "—"} isMobile={isMobile} />
         <FieldRow label="Nama" value={a?.namaOrtu || "—"} isMobile={isMobile} />
+        <FieldRow label="Tempat Lahir" value={a?.tempatLahirOrtu || "—"} isMobile={isMobile} />
+        <FieldRow label="Tanggal Lahir" value={formatDate(a?.tglLahirOrtu ?? "")} isMobile={isMobile} />
         <FieldRow label="Jenis Kelamin" value={a?.jenisKelaminOrtu === "L" ? "Laki-laki" : a?.jenisKelaminOrtu === "P" ? "Perempuan" : "—"} isMobile={isMobile} />
         <FieldRow label="Kewarganegaraan" value={a?.kewarganegaraan || "—"} isMobile={isMobile} />
         <FieldRow label="Status Perkawinan" value={a?.statusPerkawinan || "—"} isMobile={isMobile} />
@@ -269,7 +271,7 @@ export function StepReview({ personalData: p, academicData: a, docData: d, onEdi
                 marginLeft: isMobile ? "13px" : "0",
                 color: doc.uploaded ? "#2e7d32" : doc.required ? "#d4183d" : "#9aa4b8",
               }}>
-                {doc.uploaded ? "✓ Terunggah" : "Belum"}
+                {doc.uploaded ? (doc.fileName ? `✓ ${doc.fileName}` : "✓ Terunggah") : "Belum"}
               </span>
             </div>
           ))}

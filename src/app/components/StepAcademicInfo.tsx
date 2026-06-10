@@ -230,6 +230,7 @@ function SectionHeader({ icon, title, subtitle }: { icon: React.ReactNode; title
 
 export interface AcademicFormData {
   faculty: string; major: string; year: string; gpa: string;
+  ktpOrtu: string; tempatLahirOrtu: string; tglLahirOrtu: string;
   namaOrtu: string; jenisKelaminOrtu: string; kewarganegaraan: string;
   statusPerkawinan: string; agama: string; pendapatan: string; tanggungan: number;
 }
@@ -280,8 +281,8 @@ export function StepAcademicInfo({ onValidChange, showErrors, onDataChange }: Pr
 
   useEffect(() => { onValidChange(isValid); }, [isValid]);
   useEffect(() => {
-    onDataChange({ faculty, major, year, gpa, namaOrtu, jenisKelaminOrtu, kewarganegaraan, statusPerkawinan, agama, pendapatan, tanggungan });
-  }, [faculty, major, year, gpa, namaOrtu, jenisKelaminOrtu, kewarganegaraan, statusPerkawinan, agama, pendapatan, tanggungan]);
+    onDataChange({ faculty, major, year, gpa, ktpOrtu, tempatLahirOrtu, tglLahirOrtu, namaOrtu, jenisKelaminOrtu, kewarganegaraan, statusPerkawinan, agama, pendapatan, tanggungan });
+  }, [faculty, major, year, gpa, ktpOrtu, tempatLahirOrtu, tglLahirOrtu, namaOrtu, jenisKelaminOrtu, kewarganegaraan, statusPerkawinan, agama, pendapatan, tanggungan]);
 
   const se = showErrors; // shorthand
 

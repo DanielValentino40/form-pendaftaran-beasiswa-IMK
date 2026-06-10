@@ -1,10 +1,12 @@
-import { useState } from "react";
-
 interface SidePanelProps {
   onSaveDraft: () => void;
   draftSaved: boolean;
   currentStep: number;
   totalSteps: number;
+  autoSaveEnabled: boolean;
+  onAutoSaveToggle: () => void;
+  lastSavedAt: string | null;
+  saveStatus: "idle" | "saving" | "saved";
 }
 
 const TIPS: Record<number, { title: string; items: string[] }> = {
@@ -30,7 +32,7 @@ const TIPS: Record<number, { title: string; items: string[] }> = {
     title: "Tips Unggah Dokumen",
     items: [
       "Format yang diterima: PDF, JPG, PNG",
-      "Ukuran maksimum per file: 5 MB",
+      "Ukuran maksimum per file: 2 MB",
       "Surat rekomendasi wajib bertanda tangan & stempel",
       "Transkrip harus disegel oleh Biro Akademik",
     ],
@@ -48,8 +50,7 @@ const TIPS: Record<number, { title: string; items: string[] }> = {
 
 const STEP_LABELS = ["Informasi Pribadi", "Latar Akademik & Keluarga", "Dokumen & Kirim", "Tinjau & Konfirmasi"];
 
-export function SidePanel({ onSaveDraft, draftSaved, currentStep }: SidePanelProps) {
-  const [autoSave, setAutoSave] = useState(true);
+export function SidePanel({ onSaveDraft, draftSaved, currentStep, autoSaveEnabled, onAutoSaveToggle, lastSavedAt, saveStatus }: SidePanelProps) {
   const tips = TIPS[currentStep] ?? TIPS[0];
 
   return (
@@ -88,6 +89,27 @@ export function SidePanel({ onSaveDraft, draftSaved, currentStep }: SidePanelPro
           {draftSaved ? "✓ Draf Tersimpan!" : "Simpan Draf"}
         </button>
 
+        {/* Google Form style save status */}
+        {saveStatus !== "idle" && (
+          <p style={{
+            fontSize: "12px",
+            color: saveStatus === "saving" ? "#6b7a99" : "#2e7d32",
+            opacity: 0.7,
+            margin: "8px 0 0",
+            textAlign: "center",
+            transition: "all 0.3s ease",
+          }}>
+            {saveStatus === "saving" ? "Menyimpan..." : "Data disimpan"}
+          </p>
+        )}
+
+        {/* Last saved timestamp */}
+        {lastSavedAt && saveStatus === "idle" && (
+          <p style={{ fontSize: "11px", color: "#9aa4b8", margin: "8px 0 0", textAlign: "center" }}>
+            Terakhir disimpan: {lastSavedAt}
+          </p>
+        )}
+
         {/* Auto-save toggle */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -95,15 +117,15 @@ export function SidePanel({ onSaveDraft, draftSaved, currentStep }: SidePanelPro
         }}>
           <span style={{ fontSize: "12px", color: "#6b7a99" }}>Simpan otomatis setiap 5 menit</span>
           <button
-            onClick={() => setAutoSave(!autoSave)}
+            onClick={onAutoSaveToggle}
             style={{
               position: "relative", width: "32px", height: "18px", borderRadius: "99px",
-              background: autoSave ? "#f5a623" : "#9aa4b8", border: "none",
+              background: autoSaveEnabled ? "#f5a623" : "#9aa4b8", border: "none",
               cursor: "pointer", padding: 0, transition: "background 0.2s",
             }}
           >
             <div style={{
-              position: "absolute", top: "2px", left: autoSave ? "14px" : "2px",
+              position: "absolute", top: "2px", left: autoSaveEnabled ? "14px" : "2px",
               width: "14px", height: "14px", borderRadius: "50%", background: "white",
               boxShadow: "0 1px 3px rgba(0,0,0,0.2)", transition: "left 0.2s",
             }} />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { StepPersonalInfo } from "./StepPersonalInfo";
 import { StepAcademicInfo } from "./StepAcademicInfo";
@@ -25,6 +25,12 @@ const STEP_DESC = [
   "Periksa kembali seluruh data sebelum mengirimkan pendaftaran.",
 ];
 
+const DRAFT_KEY = "beasiswa_draft";
+
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
 export function ScholarshipWizard() {
   const isMobile = useIsMobile(900);
   const [currentStep, setCurrentStep] = useState(0);
@@ -41,6 +47,105 @@ export function ScholarshipWizard() {
   const [academicData, setAcademicData] = useState<AcademicFormData | null>(null);
   const [docData,      setDocData]      = useState<{ docs: DocItem[]; statement: string } | null>(null);
 
+  // Draft save state
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [draftTimestamp, setDraftTimestamp] = useState<string>("");
+  const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Refs to always have latest data in timer callback
+  const personalDataRef = useRef(personalData);
+  const academicDataRef = useRef(academicData);
+  const docDataRef = useRef(docData);
+  const currentStepRef = useRef(currentStep);
+  useEffect(() => { personalDataRef.current = personalData; }, [personalData]);
+  useEffect(() => { academicDataRef.current = academicData; }, [academicData]);
+  useEffect(() => { docDataRef.current = docData; }, [docData]);
+  useEffect(() => { currentStepRef.current = currentStep; }, [currentStep]);
+
+  // Save draft to localStorage
+  const saveDraftToStorage = useCallback(() => {
+    setSaveStatus("saving");
+    try {
+      const draft = {
+        personalData: personalDataRef.current,
+        academicData: academicDataRef.current,
+        docData: docDataRef.current ? {
+          docs: docDataRef.current.docs.map(d => ({ ...d, fileError: undefined })),
+          statement: docDataRef.current.statement,
+        } : null,
+        currentStep: currentStepRef.current,
+        savedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      const now = new Date();
+      setLastSavedAt(formatTime(now));
+    } catch (e) {
+      // localStorage might be full or disabled
+      console.warn("Failed to save draft:", e);
+    }
+    setSaveStatus("saved");
+    if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current);
+    saveStatusTimerRef.current = setTimeout(() => setSaveStatus("idle"), 3000);
+  }, []);
+
+  // Check for existing draft on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft.savedAt) {
+          const d = new Date(draft.savedAt);
+          setDraftTimestamp(d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) + " pukul " + formatTime(d));
+          setShowRestoreDialog(true);
+        }
+      }
+    } catch (e) {
+      // ignore parse errors
+    }
+  }, []);
+
+  // Auto-save timer: every 5 minutes
+  useEffect(() => {
+    if (autoSaveEnabled && !submitted) {
+      autoSaveTimerRef.current = setInterval(() => {
+        saveDraftToStorage();
+      }, 5 * 60 * 1000); // 5 minutes
+    }
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearInterval(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+    };
+  }, [autoSaveEnabled, submitted, saveDraftToStorage]);
+
+  function handleRestoreDraft() {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft.personalData) setPersonalData(draft.personalData);
+        if (draft.academicData) setAcademicData(draft.academicData);
+        if (draft.currentStep !== undefined) setCurrentStep(draft.currentStep);
+        // Note: docData file objects can't be restored from localStorage,
+        // but document metadata (names) will be shown
+      }
+    } catch (e) {
+      console.warn("Failed to restore draft:", e);
+    }
+    setShowRestoreDialog(false);
+  }
+
+  function handleDiscardDraft() {
+    localStorage.removeItem(DRAFT_KEY);
+    setShowRestoreDialog(false);
+  }
+
   function makeOnValidChange(i: number) {
     return (valid: boolean) =>
       setStepValid((prev) => prev.map((v, idx) => (idx === i ? valid : v)));
@@ -49,6 +154,7 @@ export function ScholarshipWizard() {
   function makeShowErrors(i: number) { return showErrors[i]; }
 
   function handleSaveDraft() {
+    saveDraftToStorage();
     setDraftSaved(true);
     setTimeout(() => setDraftSaved(false), 3000);
   }
@@ -104,6 +210,8 @@ export function ScholarshipWizard() {
   }
 
   function handleSubmit() {
+    // Clear draft from localStorage on submit
+    localStorage.removeItem(DRAFT_KEY);
     setSubmitted(true);
   }
 
@@ -126,6 +234,67 @@ export function ScholarshipWizard() {
   }
 
   return (
+    <>
+    {/* Draft restore dialog */}
+    {showRestoreDialog && (
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "20px",
+      }}>
+        <div style={{
+          background: "white", borderRadius: "20px", padding: "32px",
+          maxWidth: "420px", width: "100%",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+          textAlign: "center",
+        }}>
+          <div style={{
+            width: "56px", height: "56px", borderRadius: "16px",
+            background: "rgba(245,166,35,0.12)", margin: "0 auto 16px",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" stroke="#f5a623" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M17 21v-8H7v8M7 3v5h8" stroke="#f5a623" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </div>
+          <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#1a2f5e", margin: "0 0 8px" }}>
+            Draf Ditemukan
+          </h2>
+          <p style={{ fontSize: "13px", color: "#6b7a99", lineHeight: 1.6, margin: "0 0 24px" }}>
+            Anda memiliki draf tersimpan dari <strong style={{ color: "#0f1f3d" }}>{draftTimestamp}</strong>. Apakah Anda ingin melanjutkan pengisian?
+          </p>
+          <div style={{ display: "flex", gap: "12px" }}>
+            <button
+              onClick={handleDiscardDraft}
+              style={{
+                flex: 1, padding: "12px", borderRadius: "12px",
+                border: "1.5px solid rgba(26,47,94,0.15)", background: "white",
+                color: "#1a2f5e", fontSize: "13px", fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              Mulai Baru
+            </button>
+            <button
+              onClick={handleRestoreDraft}
+              style={{
+                flex: 1, padding: "12px", borderRadius: "12px",
+                border: "none",
+                background: "linear-gradient(135deg,#f5a623,#e8940d)",
+                color: "white", fontSize: "13px", fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+                boxShadow: "0 4px 14px rgba(245,166,35,0.35)",
+              }}
+            >
+              Lanjutkan Draf
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
     <div style={{ minHeight: "100vh", background: "#f4f6f9", display: "flex", flexDirection: "column", fontFamily: "'Inter', system-ui, sans-serif" }}>
 
       {/* Header */}
@@ -273,7 +442,16 @@ export function ScholarshipWizard() {
         </div>
 
         {/* Side panel */}
-        <SidePanel onSaveDraft={handleSaveDraft} draftSaved={draftSaved} currentStep={currentStep} totalSteps={STEPS.length} />
+        <SidePanel
+          onSaveDraft={handleSaveDraft}
+          draftSaved={draftSaved}
+          currentStep={currentStep}
+          totalSteps={STEPS.length}
+          autoSaveEnabled={autoSaveEnabled}
+          onAutoSaveToggle={() => setAutoSaveEnabled(prev => !prev)}
+          lastSavedAt={lastSavedAt}
+          saveStatus={saveStatus}
+        />
       </div>
 
       {/* Footer */}
@@ -282,5 +460,6 @@ export function ScholarshipWizard() {
         <span style={{ color: "#f5a623", cursor: "pointer" }}>Hubungi Dukungan</span>
       </footer>
     </div>
+    </>
   );
 }

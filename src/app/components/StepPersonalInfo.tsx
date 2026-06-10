@@ -97,10 +97,10 @@ function DatePickerField({ value, onChange, onBlur, showError, showValid }: {
   );
 }
 
-function InputField({ field, onChange, onBlur, placeholder, type = "text", icon, showValidation, showErrors }: {
+function InputField({ field, onChange, onBlur, placeholder, type = "text", icon, showValidation, showErrors, maxLength }: {
   field: FieldState; onChange: (v: string) => void; onBlur: () => void;
   placeholder: string; type?: string; icon?: React.ReactNode;
-  showValidation?: boolean; showErrors?: boolean;
+  showValidation?: boolean; showErrors?: boolean; maxLength?: number;
 }) {
   const touched = field.touched || showErrors;
   const ok  = showValidation && touched && field.valid;
@@ -115,6 +115,7 @@ function InputField({ field, onChange, onBlur, placeholder, type = "text", icon,
       <input
         type={type} placeholder={placeholder} value={field.value}
         onChange={(e) => onChange(e.target.value)} onBlur={onBlur}
+        maxLength={maxLength}
         style={{
           ...inputBase,
           paddingLeft: icon ? "44px" : "16px",
@@ -246,6 +247,12 @@ export function StepPersonalInfo({ onValidChange, showErrors, onDataChange }: Pr
         {showErrors && !selectedScholarship && (
           <p style={{ fontSize: "12px", color: "#d4183d", marginTop: "6px" }}>Pilih salah satu program beasiswa.</p>
         )}
+        {selectedScholarship && selectedScholarship !== 'djarum' && (
+          <div style={{ background: 'rgba(245, 166, 35, 0.08)', border: '1px solid rgba(245, 166, 35, 0.3)', borderRadius: '10px', padding: '12px 16px', marginTop: '12px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <span style={{ fontSize: '16px', flexShrink: 0, lineHeight: 1 }}>📋</span>
+            <p style={{ fontSize: '12.5px', color: '#8B6914', lineHeight: 1.5, margin: 0 }}>Beasiswa ini memerlukan Surat Keterangan Tidak Mampu (SKTM) yang harus diunggah pada tahap Dokumen &amp; Kirim.</p>
+          </div>
+        )}
       </div>
 
       {/* NIM + KTP */}
@@ -257,7 +264,8 @@ export function StepPersonalInfo({ onValidChange, showErrors, onDataChange }: Pr
         </div>
         <div>
           <Label required>Nomor KTP (NIK)</Label>
-          <InputField field={ktp} onChange={onKtpChange} onBlur={onKtpBlur} placeholder="16 digit NIK" showValidation showErrors={showErrors} icon={CardIcon} />
+          <InputField field={ktp} onChange={(v) => onKtpChange(v.replace(/\D/g, ''))} onBlur={onKtpBlur} placeholder="16 digit NIK" showValidation showErrors={showErrors} icon={CardIcon} maxLength={16} />
+          <p style={{ fontSize: '11px', color: '#6b7a99', textAlign: 'right', marginTop: '2px' }}>{ktp.value.length}/16 digit</p>
           <p style={{ fontSize: "11px", color: "#6b7a99", marginTop: "4px" }}>Sesuai KTP yang berlaku</p>
         </div>
       </div>
@@ -265,7 +273,8 @@ export function StepPersonalInfo({ onValidChange, showErrors, onDataChange }: Pr
       {/* KK */}
       <div>
         <Label required>Nomor Kartu Keluarga (KK)</Label>
-        <InputField field={kk} onChange={onKkChange} onBlur={onKkBlur} placeholder="16 digit Nomor KK" showValidation showErrors={showErrors} icon={CardIcon} />
+        <InputField field={kk} onChange={(v) => onKkChange(v.replace(/\D/g, ''))} onBlur={onKkBlur} placeholder="16 digit Nomor KK" showValidation showErrors={showErrors} icon={CardIcon} maxLength={16} />
+        <p style={{ fontSize: '11px', color: '#6b7a99', textAlign: 'right', marginTop: '2px' }}>{kk.value.length}/16 digit</p>
         <p style={{ fontSize: "11px", color: "#6b7a99", marginTop: "4px" }}>Tertera pada pojok kiri atas Kartu Keluarga</p>
       </div>
 
@@ -273,7 +282,8 @@ export function StepPersonalInfo({ onValidChange, showErrors, onDataChange }: Pr
       <div style={grid2}>
         <div>
           <Label required>Nomor Rekening Bank</Label>
-          <InputField field={rekening} onChange={onRekeningChange} onBlur={onRekeningBlur} placeholder="Nomor rekening atas nama sendiri" showValidation showErrors={showErrors} icon={BankIcon} />
+          <InputField field={rekening} onChange={(v) => onRekeningChange(v.replace(/\D/g, ''))} onBlur={onRekeningBlur} placeholder="Nomor rekening atas nama sendiri" showValidation showErrors={showErrors} icon={BankIcon} maxLength={16} />
+          <p style={{ fontSize: '11px', color: '#6b7a99', textAlign: 'right', marginTop: '2px' }}>{rekening.value.length}/16 digit</p>
           <p style={{ fontSize: "11px", color: "#6b7a99", marginTop: "4px" }}>Harus atas nama pendaftar</p>
         </div>
         <div>
